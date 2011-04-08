@@ -22,7 +22,7 @@
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+ * DISCLAIMED. IN NO EVENT SHALL ADAM TYGART BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
  * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -112,10 +112,10 @@ int read_file(const char *user, char *file) {
     return retval;
 }
 
-int check_sge(const char *user) {
-    setlogmask(LOG_UPTO(LOG_WARNING));
+int check_sge(const char *user, char *baseDir) {
+    setlogmask(LOG_UPTO(LOG_INFO));
     openlog("pam_sge", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
-    char *folder = "/active_jobs/";
+    char *baseDir = "/active_jobs/";
     char *dir = "/opt/sge/default/spool/";
     char *env = "/environment";
     char *hname = malloc(sizeof(char) * 16);
@@ -123,7 +123,7 @@ int check_sge(const char *user) {
 
     gethostname(hname, hnamelen);
 
-    char *ajobs = malloc(sizeof(char) * (strlen(dir) + strlen(hname) + strlen(folder)));
+    char *ajobs = malloc(sizeof(char) * (strlen(dir) + strlen(hname) + strlen(baseDir)));
     int i;
     for (i = 0; i < strlen(dir); i++)
         ajobs[i] = dir[i];
@@ -131,8 +131,8 @@ int check_sge(const char *user) {
     for (i = 0; i < strlen(hname); i++)
         ajobs[i+strlen(dir)] = hname[i];
 
-    for (i = 0; i < strlen(folder); i++)
-        ajobs[i+strlen(dir)+strlen(hname)] = folder[i];
+    for (i = 0; i < strlen(baseDir); i++)
+        ajobs[i+strlen(dir)+strlen(hname)] = baseDir[i];
 
     DIR *dp = opendir(ajobs);
     struct dirent *ep;
@@ -140,7 +140,7 @@ int check_sge(const char *user) {
     
     if (dp != NULL) {
         while ((ep = readdir(dp))) {
-            if ((ep->d_type == 4) && (~strcmp(ep->d_name, ".")) && (~strcmp(ep->d_name, "..")))  {
+            if ((ep->d_type == 4) && !((strcmp(ep->d_name, ".")) || (strcmp(ep->d_name, ".."))))  {
                 char *tmp = malloc(sizeof(char) * (strlen(ajobs) + strlen(ep->d_name) + strlen(env)));
                 for (i = 0; i < strlen(ajobs); i++)
                     tmp[i] = ajobs[i];
@@ -148,7 +148,7 @@ int check_sge(const char *user) {
                     tmp[i+strlen(ajobs)] = ep->d_name[i];
                 for (i = 0; i < strlen(env); i++)
                     tmp[i+strlen(ajobs)+strlen(ep->d_name)] = env[i];
-		syslog(LOG_WARNING, "checking for USER (%s) in %s", user, tmp);
+		syslog(LOG_INFO, "checking for USER (%s) in %s", user, tmp);
                 if (read_file(user, tmp))
                     retval = 1;
                 free(tmp);
@@ -175,7 +175,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
         return (pam_err);
 
     /* Check against SGE */
-    if (check_sge(user))
+    if (check_sge(user, baseDir))
         return PAM_SUCCESS;
 
     return PAM_AUTH_ERR;
