@@ -36,21 +36,6 @@
  * gcc -fPIC -c pam_sge.c -Wall
  * ld -x --shared -o pam_sge.so pam_sge.o
  */
-#ifndef PAM_SM_AUTH
-#define PAM_SM_AUTH
-#endif
-
-#ifndef PAM_SM_ACCOUNT
-#define PAM_SM_ACCOUNT
-#endif
-
-#ifndef PAM_SM_SESSION
-#define PAM_SM_SESSION
-#endif
-
-#ifndef PAM_SM_PASSWORD
-#define PAM_SM_PASSWORD
-#endif
 
 #include <security/pam_modules.h>
 #include <sys/param.h>
@@ -115,7 +100,8 @@ int read_file(const char *user, char *file) {
 int check_sge(const char *user, char *baseDir) {
     setlogmask(LOG_UPTO(LOG_INFO));
     openlog("pam_sge", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
-    char *baseDir = "/active_jobs/";
+    if (baseDir == NULL)
+            baseDir = "/active_jobs/";
     char *dir = "/opt/sge/default/spool/";
     char *env = "/environment";
     char *hname = malloc(sizeof(char) * 16);
@@ -140,7 +126,7 @@ int check_sge(const char *user, char *baseDir) {
     
     if (dp != NULL) {
         while ((ep = readdir(dp))) {
-            if ((ep->d_type == 4) && !((strcmp(ep->d_name, ".")) || (strcmp(ep->d_name, ".."))))  {
+            if (ep->d_type == 4) {
                 char *tmp = malloc(sizeof(char) * (strlen(ajobs) + strlen(ep->d_name) + strlen(env)));
                 for (i = 0; i < strlen(ajobs); i++)
                     tmp[i] = ajobs[i];
@@ -148,7 +134,7 @@ int check_sge(const char *user, char *baseDir) {
                     tmp[i+strlen(ajobs)] = ep->d_name[i];
                 for (i = 0; i < strlen(env); i++)
                     tmp[i+strlen(ajobs)+strlen(ep->d_name)] = env[i];
-		syslog(LOG_INFO, "checking for USER (%s) in %s", user, tmp);
+                syslog(LOG_INFO, "checking for USER (%s) in %s", user, tmp);
                 if (read_file(user, tmp))
                     retval = 1;
                 free(tmp);
@@ -168,11 +154,32 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
     int argc, const char *argv[])
 {
     const char *user;
+    char *baseDir = NULL;
     int pam_err;
 
     /* identify user */
     if ((pam_err = pam_get_user(pamh, &user, NULL)) != PAM_SUCCESS)
         return (pam_err);
+
+    int i;
+    for (i=0; i < argc; i++) {
+        char key[140];
+        char val[140];
+        int found = -1;
+        int j;
+        for (j = 0; j < strlen(argv[i]); j++)
+            if ((found == -1) && (argv[i][j] != '='))
+                key[j] = argv[i][j];
+            else if (argv[i][j] == '=')
+                found = j;
+            else
+                val[j-found-1] = argv[i][j];
+        if (strcmp("SPOOL", key)) {
+                baseDir = val;
+        }
+
+
+    }
 
     /* Check against SGE */
     if (check_sge(user, baseDir))
@@ -186,34 +193,6 @@ pam_sm_setcred(pam_handle_t *pamh, int flags,
     int argc, const char *argv[])
 {
     return (PAM_SUCCESS);
-}
-
-PAM_EXTERN int
-pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
-    int argc, const char *argv[])
-{
-    return (PAM_SUCCESS);
-}
-
-PAM_EXTERN int
-pam_sm_open_session(pam_handle_t *pamh, int flags,
-    int argc, const char *argv[])
-{
-    return (PAM_SUCCESS);
-}
-
-PAM_EXTERN int
-pam_sm_close_session(pam_handle_t *pamh, int flags,
-    int argc, const char *argv[])
-{
-    return (PAM_SUCCESS);
-}
-
-PAM_EXTERN int
-pam_sm_chauthtok(pam_handle_t *pamh, int flags,
-    int argc, const char *argv[])
-{
-    return (PAM_SERVICE_ERR);
 }
 
 #ifdef PAM_MODULE_ENTRY
