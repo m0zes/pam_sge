@@ -1,0 +1,18 @@
+PAM_SGE:
+
+Allows users running SGE or anything SGE based to tie into PAM, and log into hosts running their jobs.
+
+* PAM modifications:
+
+system-auth:
+account    sufficient   pam_sge.so
+session    sufficient   pam_sge.so
+
+Licensed under the BSD license.
+
+* Compile
+gcc -fPIC -c pam_sge.c -Wall
+ld -x --shared -o pam_sge.so pam_sge.o
+
+* Install
+mv pam_sge.so /lib[,32,64]/security/pam_sge.so
