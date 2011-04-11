@@ -52,7 +52,6 @@
 #include <stdio.h>
 #include <syslog.h>
 
-#include <security/pam_modules.h>
 #include <security/pam_appl.h>
 
 #ifndef PAM_EXTERN
@@ -106,29 +105,30 @@ int check_sge(const char *user, char *baseDir) {
     setlogmask(LOG_UPTO(LOG_INFO));
     openlog("pam_sge", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
     if (baseDir == NULL)
-            baseDir = "/active_jobs/";
-    char *dir = "/opt/sge/default/spool/";
+	    baseDir = "/opt/sge/default/spool/";
+    char *jobdir = "/active_jobs/";
     char *env = "/environment";
     char *hname = malloc(sizeof(char) * 16);
     int hnamelen = 16;
 
     gethostname(hname, hnamelen);
 
-    char *ajobs = malloc(sizeof(char) * (strlen(dir) + strlen(hname) + strlen(baseDir)));
+    char *ajobs = malloc(sizeof(char) * (strlen(baseDir) + strlen(hname) + strlen(jobdir)));
     int i;
-    for (i = 0; i < strlen(dir); i++)
-        ajobs[i] = dir[i];
+    for (i = 0; i < strlen(baseDir); i++)
+        ajobs[i] = baseDir[i];
 
     for (i = 0; i < strlen(hname); i++)
-        ajobs[i+strlen(dir)] = hname[i];
+        ajobs[i+strlen(baseDir)] = hname[i];
 
-    for (i = 0; i < strlen(baseDir); i++)
-        ajobs[i+strlen(dir)+strlen(hname)] = baseDir[i];
+    for (i = 0; i < strlen(jobdir); i++)
+        ajobs[i+strlen(baseDir)+strlen(hname)] = jobdir[i];
 
     DIR *dp = opendir(ajobs);
     struct dirent *ep;
     int retval = 0;
     
+    syslog(LOG_INFO, "checking for USER (%s) starting in %s", user, baseDir);
     if (dp != NULL) {
         while ((ep = readdir(dp))) {
             if (ep->d_type == 4) {
