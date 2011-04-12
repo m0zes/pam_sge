@@ -3,12 +3,19 @@ PAM_SGE:
 Allows users running SGE or anything SGE based to tie into PAM, and log into hosts running their jobs.
 
 * PAM modifications:
-
 system-auth:
 account    sufficient   pam_sge.so
-session    sufficient   pam_sge.so
 
-Licensed under the BSD license.
+* Supports other PAM specs
+* password -- Pretends like password changes work.
+password   sufficient   pam_sge.so
+* session -- Will allow you to start a session just by checking if you have jobs running. Not necessary
+session    sufficient   pam_sge.so
+* auth -- Will replace the password prompt with a check to see if you have jobs running.
+* Allows anyone to login as a user that has jobs running on that host. (DANGEROUS)
+auth       sufficient   pam_sge.so
+
+Licensed under the BSD or GPL licenses.
 
 * Compile
 gcc -fPIC -c pam_sge.c -Wall
