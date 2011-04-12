@@ -73,9 +73,9 @@ int read_file(const char *user, char *file) {
         return 0;
     }
     int retval = 0;
-    char line[340];
-    char key[340];
-    char val[340];
+    char line[4096];
+    char key[5120];
+    char val[5120];
     while (fscanf(fp, "%s", line) != EOF) {
         int i, found = - 1;
         for (i = 0; i < strlen(line); i++) {
