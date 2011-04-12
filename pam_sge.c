@@ -58,6 +58,12 @@
 #define PAM_EXTERN
 #endif
 
+/*
+ * read_file: reads the environment file for a job and checks for the user
+ * Pass in the user and the file to read, and it will look for USER=$user
+ * in the environment file.
+ * Returns a "bool" for auth. 0 == failure, 1 == success.
+ */
 int read_file(const char *user, char *file) {
     FILE *fp = fopen(file, "r");
     setlogmask(LOG_UPTO(LOG_WARNING));
@@ -107,6 +113,13 @@ int read_file(const char *user, char *file) {
     return retval;
 }
 
+/*
+ * check_sge: The main auth function.
+ * Pass in the user you are checking for, and the starting directory, and it
+ * will find all active jobs on the host by looking for their environment
+ * files. Then calls read_file on the user and the environment file.
+ * Returns a "bool" for auth. 0 == failure, 1 == success.
+ */
 int check_sge(const char *user, char *baseDir) {
     setlogmask(LOG_UPTO(LOG_INFO));
     openlog("pam_sge", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
@@ -165,6 +178,10 @@ int check_sge(const char *user, char *baseDir) {
     return retval;
 }
 
+/*
+ * pam_sm_authenticate.
+ * This implementation reads the module arguments and Queries SGE files for access to the host.
+ */
 PAM_EXTERN int
 pam_sm_authenticate(pam_handle_t *pamh, int flags,
     int argc, const char *argv[])
@@ -204,6 +221,9 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
     return PAM_AUTH_ERR;
 }
 
+/*
+ * pam_sm_setcred: Module doesn't support, pretend it worked.
+ */
 PAM_EXTERN int
 pam_sm_setcred(pam_handle_t *pamh, int flags,
     int argc, const char *argv[])
@@ -211,6 +231,9 @@ pam_sm_setcred(pam_handle_t *pamh, int flags,
     return (PAM_SUCCESS);
 }
 
+/*
+ * pam_sm_acct_mgmt: Support account from pam by calling pam_sm_authenticate
+ */
 PAM_EXTERN int
 pam_sm_acct_mgmt (pam_handle_t *pamh, int flags,
     int argc, const char **argv)
@@ -218,6 +241,9 @@ pam_sm_acct_mgmt (pam_handle_t *pamh, int flags,
     return pam_sm_authenticate(pamh, flags, argc, argv);
 }
 
+/*
+ * pam_sm_open_session: Support session from pam by calling pam_sm_authenticate
+ */
 PAM_EXTERN int
 pam_sm_open_session (pam_handle_t *pamh, int flags,
     int argc, const char **argv)
@@ -225,6 +251,9 @@ pam_sm_open_session (pam_handle_t *pamh, int flags,
     return pam_sm_authenticate(pamh, flags, argc, argv);
 }
 
+/*
+ * pam_sm_close_session: Support session from pam by calling pam_sm_authenticate
+ */
 PAM_EXTERN int
 pam_sm_close_session (pam_handle_t *pamh, int flags,
     int argc, const char **argv)
@@ -232,6 +261,9 @@ pam_sm_close_session (pam_handle_t *pamh, int flags,
     return pam_sm_authenticate(pamh, flags, argc, argv);
 }
 
+/*
+ * pam_sm_chauthtok: Support passwd from pam by calling pam_sm_authenticate
+ */
 PAM_EXTERN int
 pam_sm_chauthtok (pam_handle_t *pamh, int flags,
     int argc, const char **argv)
@@ -239,6 +271,9 @@ pam_sm_chauthtok (pam_handle_t *pamh, int flags,
     return pam_sm_authenticate(pamh, flags, argc, argv);
 }
 
+/*
+ * define the struct for a static pam module.
+ */
 #ifdef PAM_STATIC
 struct pam_module _pam_sge_modstruct = {
     "pam_sge",
