@@ -60,15 +60,16 @@
 
 int read_file(const char *user, char *file) {
     FILE *fp = fopen(file, "r");
-    //setlogmask(LOG_UPTO(LOG_WARNING));
-    //openlog("pam_sge_read", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+    setlogmask(LOG_UPTO(LOG_WARNING));
+    openlog("pam_sge_read", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
     if (fp == NULL) {
+        syslog(LOG_WARNING, "logfile %s doesn't exist", file);
         return 0;
     }
     int retval = 0;
-    char line[140];
-    char key[140];
-    char val[140];
+    char line[340];
+    char key[340];
+    char val[340];
     while (fscanf(fp, "%s", line) != EOF) {
         int i, found = - 1;
         for (i = 0; i < strlen(line); i++) {
@@ -80,7 +81,7 @@ int read_file(const char *user, char *file) {
                         key[i] = line[i];
                 }
             } else {
-                if ((strcmp(key, "USER")))
+                if (((strcmp(key, "USER"))) == 0)
                     val[i-found-1] = line[i];
                 else {
                     val[i-found-1] = '\0';
@@ -92,12 +93,17 @@ int read_file(const char *user, char *file) {
         }
 	
         //syslog(LOG_WARNING, "read key (%s) and val (%s)", key, val);
-        if ((strcmp(key, "USER")) && (strcmp(val, user))) {
-            retval = 1;
-            break;
-	    }
+        if ((strcmp(key, "USER")) == 0) {
+            //syslog(LOG_WARNING, "key (%s) == \"USER\"", key);
+            if ((strcmp(val, user)) == 0) {
+                syslog(LOG_WARNING, "USER (%s) == VAL (%s)", user, val);
+                retval = 1;
+                break;
+            }
+        }
     }
     fclose(fp);
+    closelog();
     return retval;
 }
 
@@ -105,7 +111,7 @@ int check_sge(const char *user, char *baseDir) {
     setlogmask(LOG_UPTO(LOG_INFO));
     openlog("pam_sge", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
     if (baseDir == NULL)
-	    baseDir = "/opt/sge/default/spool/";
+        baseDir = "/opt/sge/default/spool/";
     char *jobdir = "/active_jobs/";
     char *env = "/environment";
     char *hname = malloc(sizeof(char) * 16);
@@ -113,7 +119,7 @@ int check_sge(const char *user, char *baseDir) {
 
     gethostname(hname, hnamelen);
 
-    char *ajobs = malloc(sizeof(char) * (strlen(baseDir) + strlen(hname) + strlen(jobdir)));
+    char *ajobs = malloc(sizeof(char) * (strlen(baseDir) + strlen(hname) + strlen(jobdir) + 1));
     int i;
     for (i = 0; i < strlen(baseDir); i++)
         ajobs[i] = baseDir[i];
@@ -124,25 +130,29 @@ int check_sge(const char *user, char *baseDir) {
     for (i = 0; i < strlen(jobdir); i++)
         ajobs[i+strlen(baseDir)+strlen(hname)] = jobdir[i];
 
+    ajobs[strlen(baseDir)+strlen(hname)+strlen(jobdir)] = '\0';
+
     DIR *dp = opendir(ajobs);
     struct dirent *ep;
     int retval = 0;
     
-    syslog(LOG_INFO, "checking for USER (%s) starting in %s", user, baseDir);
+    //syslog(LOG_INFO, "checking for USER (%s) starting in %s", user, ajobs);
     if (dp != NULL) {
         while ((ep = readdir(dp))) {
-            if (ep->d_type == 4) {
-                char *tmp = malloc(sizeof(char) * (strlen(ajobs) + strlen(ep->d_name) + strlen(env)));
+            if ((ep->d_type == 4) && (ep->d_name[0] != '.')) {
+                char *tmp = malloc(sizeof(char) * (strlen(ajobs) + strlen(ep->d_name) + strlen(env) + 1));
                 for (i = 0; i < strlen(ajobs); i++)
                     tmp[i] = ajobs[i];
                 for (i = 0; i < strlen(ep->d_name); i++)
                     tmp[i+strlen(ajobs)] = ep->d_name[i];
                 for (i = 0; i < strlen(env); i++)
                     tmp[i+strlen(ajobs)+strlen(ep->d_name)] = env[i];
+		tmp[strlen(ajobs)+strlen(ep->d_name)+strlen(env)] = '\0';
                 syslog(LOG_INFO, "checking for USER (%s) in %s", user, tmp);
                 if (read_file(user, tmp))
                     retval = 1;
                 free(tmp);
+		//syslog(LOG_INFO, "Result of reading file for USER=%s is %d", user, retval);
                 if (retval == 1)
                     break;
             }
@@ -151,6 +161,7 @@ int check_sge(const char *user, char *baseDir) {
     }
     free(ajobs);
     free(hname);
+    closelog();
     return retval;
 }
 
@@ -179,7 +190,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
                 found = j;
             else
                 val[j-found-1] = argv[i][j];
-        if (strcmp("SPOOL", key)) {
+        if ((strcmp("SPOOL", key)) == 0) {
                 baseDir = val;
         }
 
